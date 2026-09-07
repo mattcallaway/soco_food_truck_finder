@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Appearance, Vendor, Venue } from '@/types';
 import { APP_CONFIG } from '@/config/app-config';
 import { formatTimeDisplay } from '@/lib/timezone';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 
 interface MapProps {
   appearances: Appearance[];
@@ -26,10 +27,19 @@ export default function MapLibreMap({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<{ [key: string]: maplibregl.Marker }>({});
 
-  useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current) return;
+  const [mapReady, setMapReady] = useState<boolean>(false);
+  const [mapError, setMapError] = useState<string | null>(null);
+
+  const initMap = () => {
+    if (!mapContainerRef.current) return;
+    setMapError(null);
 
     try {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+
       const map = new maplibregl.Map({
         container: mapContainerRef.current,
         style: APP_CONFIG.mapTileUrl,
@@ -38,12 +48,43 @@ export default function MapLibreMap({
       });
 
       map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+      setMapReady(true);
+      if (mapContainerRef.current) {
+        mapContainerRef.current.setAttribute('data-map-ready', 'true');
+      }
+
+      map.on('load', () => {
+        setMapReady(true);
+      });
+
+      map.on('error', (e) => {
+        console.warn('MapLibre style/tile error warning:', e);
+      });
+
       mapRef.current = map;
-    } catch (e) {
+    } catch (e: any) {
       console.error('Failed to initialize MapLibre GL JS map:', e);
+      setMapError('Map GL canvas context failed to initialize. Displaying accessible food truck list fallback.');
+    }
+  };
+
+  useEffect(() => {
+    initMap();
+
+    // Resize observer to auto call map.resize() on container size change
+    const resizeObserver = new ResizeObserver(() => {
+      if (mapRef.current) {
+        mapRef.current.resize();
+      }
+    });
+
+    if (mapContainerRef.current) {
+      resizeObserver.observe(mapContainerRef.current);
     }
 
     return () => {
+      resizeObserver.disconnect();
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
@@ -51,7 +92,7 @@ export default function MapLibreMap({
     };
   }, []);
 
-  // Update Markers
+  // Update Markers when appearances change
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -69,6 +110,7 @@ export default function MapLibreMap({
 
       // Custom marker DOM element
       const el = document.createElement('div');
+      el.setAttribute('data-testid', `map-marker-${app.id}`);
       el.className = `w-9 h-9 rounded-full flex items-center justify-center cursor-pointer transition-all transform shadow-lg ${
         isSelected
           ? 'bg-amber-500 text-slate-950 scale-125 ring-4 ring-amber-300 z-30'
@@ -125,13 +167,43 @@ export default function MapLibreMap({
     }
   }, [selectedAppearanceId, appearances, venues]);
 
+  if (mapError) {
+    return (
+      <div className="w-full h-full min-h-[400px] rounded-2xl bg-slate-950 border border-slate-800 p-8 flex flex-col items-center justify-center text-center space-y-3">
+        <AlertCircle className="w-10 h-10 text-amber-500" />
+        <h3 className="text-base font-bold text-white">Map View Temporarily Unavailable</h3>
+        <p className="text-xs text-slate-400 max-w-sm">{mapError}</p>
+        <button
+          onClick={initMap}
+          className="px-3 py-1.5 bg-slate-800 text-slate-200 hover:text-amber-400 text-xs font-semibold rounded-lg flex items-center gap-1"
+        >
+          <RefreshCw className="w-3.5 h-3.5" /> Retry Loading Map
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="w-full h-full relative rounded-2xl overflow-hidden border border-slate-800 shadow-xl bg-slate-950">
-      <div ref={mapContainerRef} className="w-full h-full min-h-[400px]" />
+    <div
+      data-testid="food-map"
+      data-map-ready={mapReady ? 'true' : 'false'}
+      className="w-full h-full min-h-[500px] relative rounded-2xl overflow-hidden border border-slate-800 shadow-xl bg-slate-950 flex flex-col"
+    >
+      <div
+        ref={mapContainerRef}
+        data-testid="map-container"
+        className="w-full h-full min-h-[500px] flex-1"
+      />
       <div className="absolute bottom-3 left-3 bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800 text-xs text-slate-300 pointer-events-none z-10 flex items-center gap-1.5">
-        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-        MapLibre GL &bull; {APP_CONFIG.serviceArea}
+        <span
+          className={`w-2 h-2 rounded-full ${
+            mapReady ? 'bg-amber-500 animate-pulse' : 'bg-slate-500'
+          }`}
+        />
+        <span>MapLibre GL &bull; {APP_CONFIG.serviceArea}</span>
       </div>
     </div>
   );
 }
+
+

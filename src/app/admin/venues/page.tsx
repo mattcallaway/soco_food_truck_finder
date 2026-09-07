@@ -3,13 +3,16 @@
 import React, { useState, useEffect } from 'react';
 import { getVenues, saveVenue, addAuditLog } from '@/lib/db/store';
 import { Venue } from '@/types';
-import { MapPin, Plus, Edit, Tag, Navigation } from 'lucide-react';
+import { MapPin, Plus, Edit, Navigation, Compass, RefreshCw } from 'lucide-react';
 import { SONOMA_CITIES } from '@/config/app-config';
 
 export default function VenuesAdminPage() {
   const [venues, setVenues] = useState<Venue[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [geocoding, setGeocoding] = useState<boolean>(false);
+  const [geocodeStatus, setGeocodeStatus] = useState<string | null>(null);
+
   const [editingVenue, setEditingVenue] = useState<Partial<Venue>>({
     city: 'Santa Rosa',
     aliases: [],
@@ -34,6 +37,43 @@ export default function VenuesAdminPage() {
   useEffect(() => {
     loadVenues();
   }, []);
+
+  const handleGeocode = async () => {
+    if (!editingVenue.address || !editingVenue.city) {
+      alert('Please enter an address and city first.');
+      return;
+    }
+    setGeocoding(true);
+    setGeocodeStatus(null);
+
+    try {
+      const res = await fetch('/api/admin/geocode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          address: editingVenue.address,
+          city: editingVenue.city,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setEditingVenue((prev) => ({
+          ...prev,
+          lat: data.lat,
+          lng: data.lng,
+        }));
+        setGeocodeStatus(`Geocoded to ${data.lat.toFixed(4)}, ${data.lng.toFixed(4)} (${data.cached ? 'cached' : 'live'})`);
+      } else {
+        setGeocodeStatus(`Geocoding error: ${data.error || 'Address not found'}`);
+      }
+    } catch (err: any) {
+      console.error('Geocode request error:', err);
+      setGeocodeStatus(`Error: ${err.message}`);
+    } finally {
+      setGeocoding(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,7 +134,7 @@ export default function VenuesAdminPage() {
             <MapPin className="w-6 h-6 text-amber-500" />
             <span>Venues & Aliases Management</span>
           </h1>
-          <p className="text-xs text-slate-400 mt-1">Manage Sonoma County host venues and alias matching rules</p>
+          <p className="text-xs text-slate-400 mt-1">Manage Sonoma County host venues, coordinates, and alias matching rules</p>
         </div>
 
         <button
@@ -106,8 +146,10 @@ export default function VenuesAdminPage() {
               lat: 38.4404,
               lng: -122.7141,
             });
+            setGeocodeStatus(null);
             setIsModalOpen(true);
           }}
+          data-testid="add-venue-btn"
           className="px-4 py-2 bg-amber-500 text-slate-950 font-bold text-xs rounded-xl hover:bg-amber-400 flex items-center gap-1.5"
         >
           <Plus className="w-4 h-4" /> Add Venue
@@ -119,7 +161,7 @@ export default function VenuesAdminPage() {
           <p className="text-slate-500 text-xs">Loading venues...</p>
         ) : (
           venues.map((v) => (
-            <div key={v.id} className="bg-slate-900 rounded-2xl border border-slate-800 p-5 space-y-3">
+            <div key={v.id} className="bg-slate-900 rounded-2xl border border-slate-800 p-5 space-y-3 shadow-lg">
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="font-bold text-white text-base">{v.canonicalName}</h3>
@@ -128,6 +170,7 @@ export default function VenuesAdminPage() {
                 <button
                   onClick={() => {
                     setEditingVenue(v);
+                    setGeocodeStatus(null);
                     setIsModalOpen(true);
                   }}
                   className="p-1.5 rounded bg-slate-800 text-slate-400 hover:text-amber-400"
@@ -136,7 +179,7 @@ export default function VenuesAdminPage() {
                 </button>
               </div>
 
-              <div className="text-xs text-slate-500 flex items-center gap-2 font-mono">
+              <div className="text-xs text-slate-500 flex items-center gap-3 font-mono">
                 <span>Lat: {v.lat.toFixed(4)}</span>
                 <span>Lng: {v.lng.toFixed(4)}</span>
               </div>
@@ -175,7 +218,18 @@ export default function VenuesAdminPage() {
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1 font-semibold">Address</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-400 font-semibold">Address</label>
+                  <button
+                    type="button"
+                    onClick={handleGeocode}
+                    disabled={geocoding}
+                    className="text-amber-400 hover:underline text-[11px] font-bold flex items-center gap-1"
+                  >
+                    <Compass className={`w-3 h-3 ${geocoding ? 'animate-spin' : ''}`} />
+                    <span>{geocoding ? 'Geocoding...' : 'Geocode Address'}</span>
+                  </button>
+                </div>
                 <input
                   type="text"
                   value={editingVenue.address || ''}
@@ -184,6 +238,12 @@ export default function VenuesAdminPage() {
                   required
                 />
               </div>
+
+              {geocodeStatus && (
+                <div className="text-[11px] text-amber-300 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
+                  {geocodeStatus}
+                </div>
+              )}
 
               <div className="grid grid-cols-3 gap-2">
                 <div>

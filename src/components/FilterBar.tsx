@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Search, Calendar, MapPin, Utensils, Sparkles, Navigation, X } from 'lucide-react';
+import { Search, MapPin, Utensils, Sparkles, Navigation, X } from 'lucide-react';
 import { SONOMA_CITIES, CUISINE_TAXONOMY, DIETARY_TAXONOMY } from '@/config/app-config';
 
 export type DateViewOption = 'today' | 'tomorrow' | 'this_week' | 'upcoming';
@@ -41,11 +41,11 @@ export default function FilterBar({
   onRequestLocation,
   locationError,
 }: FilterBarProps) {
-  const dateTabs: { id: DateViewOption; label: string }[] = [
-    { id: 'today', label: 'Today' },
-    { id: 'tomorrow', label: 'Tomorrow' },
-    { id: 'this_week', label: 'This Week' },
-    { id: 'upcoming', label: 'Upcoming' },
+  const dateTabs: { id: DateViewOption; label: string; testId: string }[] = [
+    { id: 'today', label: 'Today', testId: 'date-filter-today' },
+    { id: 'tomorrow', label: 'Tomorrow', testId: 'date-filter-tomorrow' },
+    { id: 'this_week', label: 'This Week', testId: 'date-filter-this_week' },
+    { id: 'upcoming', label: 'Upcoming', testId: 'date-filter-upcoming' },
   ];
 
   const hasActiveFilters =
@@ -70,6 +70,7 @@ export default function FilterBar({
               <button
                 key={tab.id}
                 onClick={() => setDateView(tab.id)}
+                data-testid={tab.testId}
                 className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                   dateView === tab.id
                     ? 'bg-amber-500 text-slate-950 shadow-md'
@@ -85,6 +86,7 @@ export default function FilterBar({
           <div className="flex items-center gap-2">
             <button
               onClick={onRequestLocation}
+              data-testid="location-button"
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors border ${
                 userCoords
                   ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
@@ -98,6 +100,7 @@ export default function FilterBar({
             {/* Open Now Quick Toggle */}
             <button
               onClick={() => setOpenNowOnly(!openNowOnly)}
+              data-testid="open-now-button"
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors border ${
                 openNowOnly
                   ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold'
@@ -120,6 +123,7 @@ export default function FilterBar({
               placeholder="Search truck, venue, cuisine..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              data-testid="search-input"
               className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
             />
           </div>
@@ -129,6 +133,7 @@ export default function FilterBar({
             <select
               value={selectedCity}
               onChange={(e) => setSelectedCity(e.target.value)}
+              data-testid="city-select"
               className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-amber-500 transition-colors appearance-none"
             >
               <option value="">All Sonoma Cities</option>
@@ -146,6 +151,7 @@ export default function FilterBar({
             <select
               value={selectedCuisine}
               onChange={(e) => setSelectedCuisine(e.target.value)}
+              data-testid="cuisine-select"
               className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-amber-500 transition-colors appearance-none"
             >
               <option value="">All Cuisines</option>
@@ -163,6 +169,7 @@ export default function FilterBar({
             <select
               value={selectedDietary}
               onChange={(e) => setSelectedDietary(e.target.value)}
+              data-testid="dietary-select"
               className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-amber-500 transition-colors appearance-none"
             >
               <option value="">All Dietary Options</option>
@@ -181,6 +188,7 @@ export default function FilterBar({
             <span>Filtering active results</span>
             <button
               onClick={clearFilters}
+              data-testid="clear-filters-btn"
               className="text-amber-400 hover:underline flex items-center gap-1 font-medium"
             >
               <X className="w-3.5 h-3.5" /> Clear All Filters

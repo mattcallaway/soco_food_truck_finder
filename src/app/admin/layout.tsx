@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import {
   LayoutDashboard,
   Truck,
@@ -11,13 +12,52 @@ import {
   Link2,
   Inbox,
   History,
-  Settings,
   ShieldAlert,
+  LogIn,
 } from 'lucide-react';
 import { APP_CONFIG } from '@/config/app-config';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { user, userProfile, isAdmin, loading } = useAuth();
+
+  // Do not wrap login page with main admin shell
+  if (pathname === '/admin/login') {
+    return <>{children}</>;
+  }
+
+  if (loading) {
+    return (
+      <div className="flex-1 max-w-7xl w-full mx-auto p-8 space-y-6">
+        <div className="h-16 bg-slate-900 rounded-2xl animate-pulse" />
+        <div className="h-64 bg-slate-900 rounded-3xl animate-pulse" />
+      </div>
+    );
+  }
+
+  // Strict Admin Protection
+  if (!isAdmin) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="bg-slate-900 rounded-3xl border border-slate-800 p-8 max-w-md w-full text-center space-y-4 shadow-2xl">
+          <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/30">
+            <ShieldAlert className="w-6 h-6" />
+          </div>
+          <h2 className="text-xl font-bold text-white">Access Denied</h2>
+          <p className="text-xs text-slate-400">
+            You must be signed in with an administrator account to access the {APP_CONFIG.productName} management panel.
+          </p>
+          <Link
+            href="/admin/login"
+            data-testid="admin-login-redirect-btn"
+            className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg hover:bg-amber-400 transition-colors"
+          >
+            <LogIn className="w-4 h-4" /> Go to Admin Sign-In
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const navItems = [
     { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },

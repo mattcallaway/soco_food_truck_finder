@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
-import { Heart, MapPin, Clock, Navigation, ExternalLink, Tag } from 'lucide-react';
+import { Heart, MapPin, Clock, Navigation } from 'lucide-react';
 import { Appearance, Vendor, Venue } from '@/types';
 import { formatTimeDisplay, formatDateDisplay, isCurrentlyOpen } from '@/lib/timezone';
 import { isLocalFavorite, toggleLocalFavorite } from '@/lib/favorites';
@@ -64,6 +63,7 @@ export default function VendorCard({
   return (
     <div
       onClick={onSelect}
+      data-testid={`appearance-card-${appearance.id}`}
       className={`group relative bg-slate-900 rounded-2xl overflow-hidden border transition-all duration-200 cursor-pointer shadow-lg hover:shadow-2xl ${
         isSelected
           ? 'border-amber-500 ring-2 ring-amber-500/50 bg-slate-850'
@@ -81,6 +81,7 @@ export default function VendorCard({
           {/* Favorite Heart Badge */}
           <button
             onClick={handleFavoriteClick}
+            data-testid={`favorite-button-${vendor.id}`}
             aria-label="Toggle Favorite"
             className="absolute top-3 right-3 p-2 rounded-full bg-slate-950/70 backdrop-blur-md text-white hover:scale-110 active:scale-95 transition-transform border border-slate-700 z-10"
           >
@@ -115,6 +116,7 @@ export default function VendorCard({
               <Link
                 href={`/vendors/${vendor.slug}`}
                 onClick={(e) => e.stopPropagation()}
+                data-testid={`vendor-link-${vendor.id}`}
                 className="font-bold text-lg text-white hover:text-amber-400 transition-colors line-clamp-1"
               >
                 {vendor.name}
@@ -151,6 +153,7 @@ export default function VendorCard({
                 <Link
                   href={`/venues/${venue.slug}`}
                   onClick={(e) => e.stopPropagation()}
+                  data-testid={`venue-link-${venue.id}`}
                   className="font-medium hover:text-amber-300 underline decoration-slate-600 underline-offset-2"
                 >
                   {venue.canonicalName}
@@ -192,6 +195,7 @@ export default function VendorCard({
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
+              data-testid="directions-link"
               className="text-slate-400 hover:text-amber-400 flex items-center gap-1 transition-colors"
             >
               <Navigation className="w-3.5 h-3.5" />

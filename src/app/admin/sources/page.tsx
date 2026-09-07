@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { getSources, saveSource, addAuditLog } from '@/lib/db/store';
-import { extractScheduleCandidates } from '@/lib/ingestion/ai-extractor';
-import { Source, SourceEntityType, SourcePurpose, SourceType } from '@/types';
-import { Link2, RefreshCw, Plus, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Source } from '@/types';
+import { Link2, RefreshCw, CheckCircle, AlertTriangle, Info } from 'lucide-react';
 
 export default function SourcesAdminPage() {
   const [sources, setSources] = useState<Source[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [checkingId, setCheckingId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   const loadSources = async () => {
     setLoading(true);
@@ -29,40 +29,36 @@ export default function SourcesAdminPage() {
 
   const handleCheckSourceNow = async (source: Source) => {
     setCheckingId(source.id);
+    setMessage(null);
+
     try {
-      // Simulate/Execute fetch & AI extraction
-      const sampleText =
-        source.sourceType === 'instagram'
-          ? "This Friday slinging tacos at HenHouse Santa Rosa from 4-8pm! Saturday catch us at Cooperage Beer 5-9pm!"
-          : "Upcoming Mobile Schedule: Today at Barlow Center 5pm-9pm.";
-
-      const candidates = await extractScheduleCandidates({
-        sourceId: source.id,
-        vendorId: source.entityId || 'vendor-galvans-demo',
-        rawText: sampleText,
+      const res = await fetch('/api/admin/sources/fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceId: source.id }),
       });
 
-      const updatedSource: Source = {
-        ...source,
-        lastCheckedAt: new Date().toISOString(),
-        lastSuccessfulAt: new Date().toISOString(),
-        lastError: undefined,
-      };
+      const data = await res.json();
 
-      await saveSource(updatedSource);
-      await addAuditLog({
-        adminUserId: 'admin-user',
-        action: 'check_source_now',
-        affectedEntity: 'source',
-        entityId: source.id,
-        newState: { candidatesGenerated: candidates.length },
-      });
+      if (res.ok && data.success) {
+        setMessage(`Source checked successfully! Extracted ${data.candidatesGenerated} candidate(s) sent to Review Queue.`);
+        await addAuditLog({
+          adminUserId: 'admin-user',
+          action: 'check_source_now',
+          affectedEntity: 'source',
+          entityId: source.id,
+          newState: { fetchId: data.fetchId, candidatesGenerated: data.candidatesGenerated },
+        });
+      } else if (data.status === 'restricted') {
+        setMessage(`Instagram data restricted: ${data.message}`);
+      } else {
+        setMessage(`Source check warning: ${data.errorMessage || data.error || 'Failed to fetch source'}`);
+      }
 
-      alert(`Source checked successfully! Generated ${candidates.length} candidate(s) sent to Review Queue.`);
-      loadSources();
-    } catch (err) {
-      console.error('Failed checking source:', err);
-      alert('Error fetching source data.');
+      await loadSources();
+    } catch (err: any) {
+      console.error('Error checking source:', err);
+      setMessage(`Network error checking source: ${err.message}`);
     } finally {
       setCheckingId(null);
     }
@@ -78,10 +74,17 @@ export default function SourcesAdminPage() {
             <span>Ingestion Data Sources</span>
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            First-class sources linked to Vendors, Venues, Events, or System-level feeds
+            Real server-side URL fetching pipeline attached to Vendors, Venues, Events, or System feeds
           </p>
         </div>
       </div>
+
+      {message && (
+        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 px-4 py-3 rounded-2xl text-xs flex items-center gap-2">
+          <Info className="w-4 h-4 text-amber-400 flex-shrink-0" />
+          <span>{message}</span>
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
@@ -93,7 +96,7 @@ export default function SourcesAdminPage() {
                 <th className="p-3.5">Scope & Entity</th>
                 <th className="p-3.5">Purpose</th>
                 <th className="p-3.5">Type & Frequency</th>
-                <th className="p-3.5">Status & Error Log</th>
+                <th className="p-3.5">Status & Operational Log</th>
                 <th className="p-3.5 text-right">Actions</th>
               </tr>
             </thead>
@@ -145,6 +148,7 @@ export default function SourcesAdminPage() {
                       <button
                         onClick={() => handleCheckSourceNow(src)}
                         disabled={checkingId === src.id}
+                        data-testid={`check-source-${src.id}`}
                         className="px-3 py-1.5 rounded-lg bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 disabled:opacity-50 flex items-center gap-1 ml-auto"
                       >
                         <RefreshCw className={`w-3.5 h-3.5 ${checkingId === src.id ? 'animate-spin' : ''}`} />

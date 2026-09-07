@@ -5,10 +5,13 @@ service cloud.firestore {
     
     // Helper function to check if user has admin role
     function isAdmin() {
-      return request.auth != null && request.auth.token.admin == true;
+      return request.auth != null && (
+        request.auth.token.admin == true ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
     }
 
-    // Public Collections - Read-only for unauthenticated, write for admin
+    // Public Collections - Read-only for published items, write for admin only
     match /vendors/{vendorId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -20,7 +23,8 @@ service cloud.firestore {
     }
 
     match /appearances/{appearanceId} {
-      allow read: if true;
+      // Public users may ONLY read published appearances
+      allow read: if resource.data.isPublished == true || isAdmin();
       allow write: if isAdmin();
     }
 
@@ -29,7 +33,7 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Protected Admin Ingestion & Audit Collections
+    // Protected Ingestion & Audit Collections - Admin access ONLY
     match /sources/{sourceId} {
       allow read, write: if isAdmin();
     }
@@ -50,8 +54,16 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-    // User Preferences / Favorites Collections
+    // User Preferences & Favorites Collections
     match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /user_favorites/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /notification_preferences/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
   }

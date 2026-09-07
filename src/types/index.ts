@@ -1,3 +1,16 @@
+export type DataMode = 'firebase' | 'demo';
+export type UserRole = 'admin' | 'user';
+
+export interface UserProfile {
+  uid: string;
+  email?: string;
+  displayName?: string;
+  photoURL?: string;
+  role: UserRole;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type VendorType =
   | 'food_truck'
   | 'trailer'
@@ -79,7 +92,12 @@ export interface SourceFetch {
   id: string;
   sourceId: string;
   fetchedAt: string;
-  status: 'success' | 'failed';
+  status: 'success' | 'failed' | 'restricted';
+  httpStatus?: number;
+  contentType?: string;
+  effectiveUrl?: string;
+  contentHash?: string;
+  parserUsed?: string;
   rawPayload: string;
   errorMessage?: string;
 }

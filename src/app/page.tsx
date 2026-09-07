@@ -148,6 +148,7 @@ export default function DiscoveryPage() {
         <div className="lg:hidden col-span-1 flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 mb-2">
           <button
             onClick={() => setMobileTab('list')}
+            data-testid="mobile-toggle-list"
             className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 ${
               mobileTab === 'list'
                 ? 'bg-amber-500 text-slate-950 shadow-md'
@@ -159,6 +160,7 @@ export default function DiscoveryPage() {
           </button>
           <button
             onClick={() => setMobileTab('map')}
+            data-testid="mobile-toggle-map"
             className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 ${
               mobileTab === 'map'
                 ? 'bg-amber-500 text-slate-950 shadow-md'
@@ -254,7 +256,7 @@ export default function DiscoveryPage() {
 
         {/* RIGHT COLUMN: Sticky Interactive Map (5 cols on desktop) */}
         <div
-          className={`lg:col-span-5 h-[calc(100vh-12rem)] lg:sticky lg:top-40 ${
+          className={`lg:col-span-5 h-[calc(100vh-12rem)] min-h-[500px] lg:sticky lg:top-40 ${
             mobileTab === 'list' ? 'hidden lg:block' : 'block'
           }`}
         >
@@ -266,6 +268,7 @@ export default function DiscoveryPage() {
             onSelectAppearance={handleSelectAppearance}
           />
         </div>
+
       </div>
     </div>
   );

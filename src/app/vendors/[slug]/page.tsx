@@ -236,10 +236,12 @@ export default function VendorProfilePage({ params }: { params: Promise<{ slug: 
               )}`}
               target="_blank"
               rel="noreferrer"
+              data-testid="directions-link"
               className="px-4 py-2.5 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs flex items-center gap-1.5 hover:bg-amber-400 transition-colors"
             >
               <Navigation className="w-4 h-4" /> Get Directions
             </a>
+
           </div>
         ) : (
           <p className="text-sm text-slate-400">No upcoming appearances currently published for this vendor.</p>
