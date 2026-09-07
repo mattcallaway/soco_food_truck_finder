@@ -83,6 +83,10 @@ export interface Source {
   lastCheckedAt?: string;
   lastSuccessfulAt?: string;
   lastError?: string;
+  /** SHA-256 hash of the last successfully fetched content — used for deduplication */
+  lastContentHash?: string;
+  /** UID of the admin who last modified this record */
+  updatedBy?: string;
   metadata?: Record<string, any>;
   createdAt: string;
   updatedAt: string;

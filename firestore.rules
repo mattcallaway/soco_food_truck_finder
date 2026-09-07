@@ -2,16 +2,36 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper function to check if user has admin role
+
+    // ── Helper functions ────────────────────────────────────────────────────
+
+    /**
+     * Admin check: ONLY the Firebase custom claim `admin == true` grants admin access.
+     * profile.role is for display only and must NOT be used for authorization.
+     */
     function isAdmin() {
-      return request.auth != null && (
-        request.auth.token.admin == true ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
-      );
+      return request.auth != null && request.auth.token.admin == true;
     }
 
-    // Public Collections - Read-only for published items, write for admin only
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    /**
+     * Prevents users from self-modifying fields that could grant privileges.
+     * Used on the /users/{userId} collection.
+     */
+    function doesNotEscalateRole() {
+      // Deny if the update attempts to change the role field
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
+    }
+
+    // ── Public Collections ──────────────────────────────────────────────────
+
     match /vendors/{vendorId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -23,8 +43,9 @@ service cloud.firestore {
     }
 
     match /appearances/{appearanceId} {
-      // Public users may ONLY read published appearances
-      allow read: if resource.data.isPublished == true || isAdmin();
+      // Public users may ONLY read published, scheduled appearances
+      allow read: if resource.data.isPublished == true && resource.data.status == 'scheduled'
+                  || isAdmin();
       allow write: if isAdmin();
     }
 
@@ -33,7 +54,8 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Protected Ingestion & Audit Collections - Admin access ONLY
+    // ── Protected Ingestion & Audit Collections — Admin ONLY ───────────────
+
     match /sources/{sourceId} {
       allow read, write: if isAdmin();
     }
@@ -51,20 +73,28 @@ service cloud.firestore {
     }
 
     match /audit_logs/{logId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin();
+      // Audit logs are written server-side via Admin SDK (which bypasses rules).
+      // Deny direct client writes to ensure integrity.
+      allow write: if false;
     }
 
-    // User Preferences & Favorites Collections
+    // ── User Preferences & Favorites ───────────────────────────────────────
+
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isOwner(userId) || isAdmin();
+      // Users can create their own profile, but cannot self-escalate the role field.
+      allow create: if isOwner(userId);
+      allow update: if (isOwner(userId) && doesNotEscalateRole()) || isAdmin();
+      allow delete: if isAdmin();
     }
 
     match /user_favorites/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isOwner(userId);
     }
 
     match /notification_preferences/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isOwner(userId);
     }
   }
 }

@@ -3,10 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { getVenues, saveVenue, addAuditLog } from '@/lib/db/store';
 import { Venue } from '@/types';
+import { useAuth } from '@/context/AuthContext';
+import { adminFetch } from '@/lib/api/admin-fetch';
 import { MapPin, Plus, Edit, Navigation, Compass, RefreshCw } from 'lucide-react';
 import { SONOMA_CITIES } from '@/config/app-config';
 
 export default function VenuesAdminPage() {
+  const { user, userProfile } = useAuth();
+  const adminUid = user?.uid || userProfile?.uid || 'unknown';
   const [venues, setVenues] = useState<Venue[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -47,9 +51,8 @@ export default function VenuesAdminPage() {
     setGeocodeStatus(null);
 
     try {
-      const res = await fetch('/api/admin/geocode', {
+      const res = await adminFetch('/api/admin/geocode', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           address: editingVenue.address,
           city: editingVenue.city,
@@ -101,7 +104,7 @@ export default function VenuesAdminPage() {
 
     await saveVenue(venueToSave);
     await addAuditLog({
-      adminUserId: 'admin-user',
+      adminUserId: adminUid,
       action: editingVenue.id ? 'edit_venue' : 'create_venue',
       affectedEntity: 'venue',
       entityId: venueToSave.id,

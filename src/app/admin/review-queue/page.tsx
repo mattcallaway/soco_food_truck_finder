@@ -10,10 +10,13 @@ import {
   addAuditLog,
 } from '@/lib/db/store';
 import { ExtractionCandidate, Vendor, Venue } from '@/types';
+import { useAuth } from '@/context/AuthContext';
 import { formatDateDisplay, formatTimeDisplay } from '@/lib/timezone';
 import { Inbox, CheckCircle, XCircle, AlertTriangle, Sparkles, Edit2 } from 'lucide-react';
 
 export default function ReviewQueuePage() {
+  const { user, userProfile } = useAuth();
+  const adminUid = user?.uid || userProfile?.uid || 'unknown';
   const [candidates, setCandidates] = useState<ExtractionCandidate[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [venues, setVenues] = useState<Venue[]>([]);
@@ -46,7 +49,7 @@ export default function ReviewQueuePage() {
     const newApp = await approveCandidate(candidate.id, { venueId });
 
     await addAuditLog({
-      adminUserId: 'admin-user',
+      adminUserId: adminUid,
       action: 'approve_extraction_candidate',
       affectedEntity: 'extraction_candidate',
       entityId: candidate.id,
@@ -59,7 +62,7 @@ export default function ReviewQueuePage() {
   const handleReject = async (candidateId: string) => {
     await rejectCandidate(candidateId);
     await addAuditLog({
-      adminUserId: 'admin-user',
+      adminUserId: adminUid,
       action: 'reject_extraction_candidate',
       affectedEntity: 'extraction_candidate',
       entityId: candidateId,
@@ -121,7 +124,7 @@ export default function ReviewQueuePage() {
 
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-amber-400" />
-                    <span className="text-slate-400">AI Confidence:</span>
+                    <span className="text-slate-400">Extraction Confidence:</span>
                     <span
                       className={`font-mono font-bold ${
                         cand.confidenceScore >= 0.85

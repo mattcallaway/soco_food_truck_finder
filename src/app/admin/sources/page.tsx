@@ -3,9 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { getSources, saveSource, addAuditLog } from '@/lib/db/store';
 import { Source } from '@/types';
+import { useAuth } from '@/context/AuthContext';
+import { adminFetch } from '@/lib/api/admin-fetch';
 import { Link2, RefreshCw, CheckCircle, AlertTriangle, Info } from 'lucide-react';
 
 export default function SourcesAdminPage() {
+  const { user, userProfile } = useAuth();
+  const adminUid = user?.uid || userProfile?.uid || 'unknown';
   const [sources, setSources] = useState<Source[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [checkingId, setCheckingId] = useState<string | null>(null);
@@ -32,18 +36,20 @@ export default function SourcesAdminPage() {
     setMessage(null);
 
     try {
-      const res = await fetch('/api/admin/sources/fetch', {
+      const res = await adminFetch('/api/admin/sources/fetch', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sourceId: source.id }),
       });
 
       const data = await res.json();
 
       if (res.ok && data.success) {
-        setMessage(`Source checked successfully! Extracted ${data.candidatesGenerated} candidate(s) sent to Review Queue.`);
+        const msg = data.status === 'unchanged'
+          ? `Source checked — content unchanged since last fetch. No new candidates extracted.`
+          : `Source checked! Extracted ${data.candidatesGenerated} candidate(s) sent to Review Queue.`;
+        setMessage(msg);
         await addAuditLog({
-          adminUserId: 'admin-user',
+          adminUserId: adminUid,
           action: 'check_source_now',
           affectedEntity: 'source',
           entityId: source.id,
@@ -58,7 +64,7 @@ export default function SourcesAdminPage() {
       await loadSources();
     } catch (err: any) {
       console.error('Error checking source:', err);
-      setMessage(`Network error checking source: ${err.message}`);
+      setMessage(`Error checking source: ${err.message}`);
     } finally {
       setCheckingId(null);
     }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Appearance, Vendor, Venue } from '@/types';
@@ -30,14 +30,19 @@ export default function MapLibreMap({
   const [mapReady, setMapReady] = useState<boolean>(false);
   const [mapError, setMapError] = useState<string | null>(null);
 
-  const initMap = () => {
+  /** Queued flyTo target — if set before map loads, it fires after load */
+  const pendingFlyToRef = useRef<{ lng: number; lat: number } | null>(null);
+
+  const initMap = useCallback(() => {
     if (!mapContainerRef.current) return;
     setMapError(null);
+    setMapReady(false);
 
     try {
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
+        markersRef.current = {};
       }
 
       const map = new maplibregl.Map({
@@ -48,34 +53,63 @@ export default function MapLibreMap({
       });
 
       map.addControl(new maplibregl.NavigationControl(), 'top-right');
-
-      setMapReady(true);
-      if (mapContainerRef.current) {
-        mapContainerRef.current.setAttribute('data-map-ready', 'true');
-      }
+      map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
 
       map.on('load', () => {
+        // Only mark ready after style has actually loaded
         setMapReady(true);
+        if (mapContainerRef.current) {
+          mapContainerRef.current.setAttribute('data-map-ready', 'true');
+        }
+        // Flush any queued flyTo that fired before the map was loaded
+        if (pendingFlyToRef.current) {
+          map.flyTo({
+            center: [pendingFlyToRef.current.lng, pendingFlyToRef.current.lat],
+            zoom: 14,
+            speed: 1.2,
+          });
+          pendingFlyToRef.current = null;
+        }
       });
 
+      // Safety fallback: if the load event doesn't fire within 8 s (e.g. tile
+      // server unreachable in CI), mark the map ready anyway so E2E tests can
+      // continue exercising markers and interactions.
+      const safetyTimer = setTimeout(() => {
+        if (!mapRef.current) return;
+        setMapReady(true);
+        if (mapContainerRef.current && mapContainerRef.current.getAttribute('data-map-ready') !== 'true') {
+          mapContainerRef.current.setAttribute('data-map-ready', 'fallback');
+        }
+      }, 8_000);
+
+      map.on('load', () => clearTimeout(safetyTimer));
+
       map.on('error', (e) => {
-        console.warn('MapLibre style/tile error warning:', e);
+        // Tile/style errors are non-fatal; log but don't hide the map
+        console.warn('MapLibre style/tile warning:', e.error?.message ?? e);
       });
 
       mapRef.current = map;
     } catch (e: any) {
       console.error('Failed to initialize MapLibre GL JS map:', e);
-      setMapError('Map GL canvas context failed to initialize. Displaying accessible food truck list fallback.');
+      setMapError(
+        'Map GL canvas context failed to initialize. Displaying accessible food truck list fallback.'
+      );
     }
-  };
+  }, []);
 
   useEffect(() => {
     initMap();
 
-    // Resize observer to auto call map.resize() on container size change
+    // ResizeObserver: call map.resize() when container changes size
     const resizeObserver = new ResizeObserver(() => {
-      if (mapRef.current) {
-        mapRef.current.resize();
+      try {
+        if (mapRef.current) {
+          mapRef.current.resize();
+        }
+      } catch {
+        // Ignore resize errors (e.g., during map destroy)
       }
     });
 
@@ -89,10 +123,11 @@ export default function MapLibreMap({
         mapRef.current.remove();
         mapRef.current = null;
       }
+      markersRef.current = {};
     };
-  }, []);
+  }, [initMap]);
 
-  // Update Markers when appearances change
+  // ── Update markers when appearances change ──────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -108,9 +143,12 @@ export default function MapLibreMap({
 
       const isSelected = selectedAppearanceId === app.id;
 
-      // Custom marker DOM element
+      // Custom marker element
       const el = document.createElement('div');
       el.setAttribute('data-testid', `map-marker-${app.id}`);
+      el.setAttribute('aria-label', `${vendor?.name ?? 'Food Truck'} at ${venue.canonicalName}`);
+      el.setAttribute('role', 'button');
+      el.setAttribute('tabindex', '0');
       el.className = `w-9 h-9 rounded-full flex items-center justify-center cursor-pointer transition-all transform shadow-lg ${
         isSelected
           ? 'bg-amber-500 text-slate-950 scale-125 ring-4 ring-amber-300 z-30'
@@ -144,19 +182,32 @@ export default function MapLibreMap({
         onSelectAppearance(app.id);
       });
 
+      // Keyboard accessibility
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelectAppearance(app.id);
+        }
+      });
+
       markersRef.current[app.id] = marker;
     });
   }, [appearances, vendors, venues, selectedAppearanceId, onSelectAppearance]);
 
-  // Fly to selected marker
+  // ── Fly to selected marker ──────────────────────────────────────────────────
   useEffect(() => {
-    if (!selectedAppearanceId || !mapRef.current) return;
+    if (!selectedAppearanceId) return;
     const app = appearances.find((a) => a.id === selectedAppearanceId);
     if (!app) return;
     const venue = venues.find((v) => v.id === app.venueId);
-    if (venue && venue.lat && venue.lng) {
+    if (!venue || !venue.lat || !venue.lng) return;
+
+    const target = { lng: venue.lng, lat: venue.lat };
+
+    if (mapRef.current && mapRef.current.loaded()) {
+      // Map is ready — fly immediately
       mapRef.current.flyTo({
-        center: [venue.lng, venue.lat],
+        center: [target.lng, target.lat],
         zoom: 14,
         speed: 1.2,
       });
@@ -164,6 +215,9 @@ export default function MapLibreMap({
       if (marker && !marker.getPopup().isOpen()) {
         marker.togglePopup();
       }
+    } else {
+      // Map not yet loaded — queue the flyTo for after load event
+      pendingFlyToRef.current = target;
     }
   }, [selectedAppearanceId, appearances, venues]);
 
@@ -205,5 +259,3 @@ export default function MapLibreMap({
     </div>
   );
 }
-
-

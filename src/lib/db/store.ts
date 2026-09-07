@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import {
   Vendor,
   Venue,
@@ -193,7 +194,7 @@ export async function getPublicAppearances(filter: AppearanceQueryFilter = {}): 
   if (getDataMode() === 'firebase') return fsGetPublicAppearances(filter);
 
   let results = memoryAppearances.filter((a) => a.isPublished && a.status === 'scheduled');
-  return applyAppearanceFilters(results, filter);
+  return applyAppearanceFilters(results, filter, memoryVendors, memoryVenues);
 }
 
 /**
@@ -203,7 +204,7 @@ export async function getAdminAppearances(filter: AppearanceQueryFilter = {}): P
   checkProductionSafety();
   if (getDataMode() === 'firebase') return fsGetAdminAppearances(filter);
 
-  return applyAppearanceFilters([...memoryAppearances], filter);
+  return applyAppearanceFilters([...memoryAppearances], filter, memoryVendors, memoryVenues);
 }
 
 // Deprecated wrapper mapped to getPublicAppearances for client backwards compatibility
@@ -211,7 +212,17 @@ export async function getAppearances(filter: AppearanceQueryFilter = {}): Promis
   return getPublicAppearances(filter);
 }
 
-function applyAppearanceFilters(results: Appearance[], filter: AppearanceQueryFilter): Appearance[] {
+/**
+ * Applies in-memory appearance filters.
+ * Vendors and venues are passed as parameters to avoid reading from stale module globals,
+ * which would produce incorrect results in Firestore mode.
+ */
+function applyAppearanceFilters(
+  results: Appearance[],
+  filter: AppearanceQueryFilter,
+  vendors: Vendor[] = [],
+  venues: Venue[] = []
+): Appearance[] {
   if (filter.date) {
     results = results.filter((a) => a.date === filter.date);
   } else {
@@ -223,21 +234,21 @@ function applyAppearanceFilters(results: Appearance[], filter: AppearanceQueryFi
   if (filter.venueId) results = results.filter((a) => a.venueId === filter.venueId);
 
   if (filter.city) {
-    const venueIdsInCity = memoryVenues
+    const venueIdsInCity = venues
       .filter((v) => v.city.toLowerCase() === filter.city!.toLowerCase())
       .map((v) => v.id);
     results = results.filter((a) => venueIdsInCity.includes(a.venueId));
   }
 
   if (filter.cuisine) {
-    const vendorIds = memoryVendors
+    const vendorIds = vendors
       .filter((v) => v.cuisines.some((c) => c.toLowerCase() === filter.cuisine!.toLowerCase()))
       .map((v) => v.id);
     results = results.filter((a) => vendorIds.includes(a.vendorId));
   }
 
   if (filter.dietary) {
-    const vendorIds = memoryVendors
+    const vendorIds = vendors
       .filter((v) => v.dietaryTags.includes(filter.dietary!))
       .map((v) => v.id);
     results = results.filter((a) => vendorIds.includes(a.vendorId));
@@ -245,7 +256,7 @@ function applyAppearanceFilters(results: Appearance[], filter: AppearanceQueryFi
 
   if (filter.searchQuery) {
     const q = filter.searchQuery.toLowerCase();
-    const matchingVendors = memoryVendors
+    const matchingVendors = vendors
       .filter(
         (v) =>
           v.name.toLowerCase().includes(q) ||
@@ -254,7 +265,7 @@ function applyAppearanceFilters(results: Appearance[], filter: AppearanceQueryFi
       )
       .map((v) => v.id);
 
-    const matchingVenues = memoryVenues
+    const matchingVenues = venues
       .filter(
         (v) =>
           v.canonicalName.toLowerCase().includes(q) ||
@@ -373,7 +384,7 @@ export async function approveCandidate(
   }
 
   const newAppearance: Appearance = {
-    id: `app-extracted-${Date.now()}`,
+    id: `app-${crypto.randomUUID()}`,
     vendorId: candidate.vendorId,
     venueId,
     date,

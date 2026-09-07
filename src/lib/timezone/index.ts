@@ -15,9 +15,11 @@ export function getTodayDateLA(): string {
 
 /**
  * Returns YYYY-MM-DD for date + daysOffset in America/Los_Angeles.
+ * @param daysOffset  Number of days to add to refDate (or now).
+ * @param refDate     Optional reference date (defaults to current server time).
  */
-export function getDateLA(daysOffset: number = 0): string {
-  const d = new Date();
+export function getDateLA(daysOffset: number = 0, refDate?: Date): string {
+  const d = new Date(refDate ?? new Date());
   d.setDate(d.getDate() + daysOffset);
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: APP_TIMEZONE,

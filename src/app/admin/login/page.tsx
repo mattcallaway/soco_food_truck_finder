@@ -10,6 +10,11 @@ export default function AdminLoginPage() {
   const { user, userProfile, isAdmin, signInWithGoogle, signInWithEmail, toggleDemoAdmin } = useAuth();
   const [emailInput, setEmailInput] = useState<string>('');
 
+  // Only show demo controls in development without Firebase configured
+  const showDemoControls =
+    process.env.NODE_ENV !== 'production' &&
+    (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY || !process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);
+
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!emailInput) return;
@@ -90,17 +95,19 @@ export default function AdminLoginPage() {
               </button>
             </form>
 
-            {/* Local Development Demo Admin Toggle */}
-            <div className="pt-4 border-t border-slate-800 text-center space-y-2">
-              <span className="text-[11px] text-slate-500 block">Development & Offline Test Override:</span>
-              <button
-                onClick={toggleDemoAdmin}
-                data-testid="demo-admin-toggle-btn"
-                className="px-4 py-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/30 text-xs font-bold hover:bg-amber-500 hover:text-slate-950 transition-colors"
-              >
-                Enable Local Demo Admin Mode
-              </button>
-            </div>
+            {/* Local Development Demo Admin Toggle — dev/demo only */}
+            {showDemoControls && (
+              <div className="pt-4 border-t border-slate-800 text-center space-y-2">
+                <span className="text-[11px] text-slate-500 block">Development &amp; Offline Test Override:</span>
+                <button
+                  onClick={toggleDemoAdmin}
+                  data-testid="demo-admin-toggle-btn"
+                  className="px-4 py-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/30 text-xs font-bold hover:bg-amber-500 hover:text-slate-950 transition-colors"
+                >
+                  Enable Local Demo Admin Mode
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
