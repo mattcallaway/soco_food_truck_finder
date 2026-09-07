@@ -1,0 +1,222 @@
+{
+  "audit": {
+    "date": "2026-09-07",
+    "commit": "39a5b0b",
+    "branch": "main",
+    "mode": "demo (in-memory, no Firebase credentials)",
+    "auditor": "Antigravity Comprehensive Audit",
+    "baseline": {
+      "build": { "status": "PASS", "exit_code": 0, "routes": 15 },
+      "vitest": { "status": "PASS", "tests_passed": 10, "tests_total": 10 },
+      "playwright": { "status": "PASS", "tests_passed": 6, "tests_total": 6, "duration_ms": 20100 },
+      "npm_audit": { "status": "WARN", "critical": 0, "high": 0, "moderate": 6, "low": 0 }
+    }
+  },
+  "findings": [
+    {
+      "id": "P0-001",
+      "severity": "P0",
+      "confidence": "High",
+      "category": "Security",
+      "title": "No server-side authentication on admin API routes",
+      "files": [
+        "src/app/api/admin/sources/fetch/route.ts",
+        "src/app/api/admin/geocode/route.ts"
+      ],
+      "evidence": "POST /api/admin/sources/fetch succeeds without any Authorization header. Code at line 13 goes directly to request.json() with no auth check.",
+      "impact": "Unauthenticated actors can trigger URL fetches, write extraction candidates, and invoke geocoding API",
+      "status": "MISSING"
+    },
+    {
+      "id": "P0-002",
+      "severity": "P0",
+      "confidence": "High",
+      "category": "Security",
+      "title": "Demo admin toggle bypass not disabled in production",
+      "files": ["src/context/AuthContext.tsx"],
+      "evidence": "toggleDemoAdmin() function sets localStorage 'soco_demo_admin'=true and grants isAdmin=true. No NODE_ENV guard.",
+      "impact": "Developers who leave demo admin enabled in a production-deployed instance gain admin UI access",
+      "status": "PARTIAL"
+    },
+    {
+      "id": "P1-001",
+      "severity": "P1",
+      "confidence": "High",
+      "category": "Data Persistence",
+      "title": "applyAppearanceFilters() reads global memoryVendors/memoryVenues in Firestore mode",
+      "files": ["src/lib/db/store.ts"],
+      "evidence": "Lines 226, 233, 241, 248 reference memoryVendors and memoryVenues directly. These are not populated in Firestore mode.",
+      "impact": "City, cuisine, dietary, and search query filters return wrong results in Firestore mode",
+      "status": "BROKEN"
+    },
+    {
+      "id": "P1-002",
+      "severity": "P1",
+      "confidence": "High",
+      "category": "Security",
+      "title": "Admin role determination via self-writable Firestore profile",
+      "files": ["src/context/AuthContext.tsx", "firestore.rules"],
+      "evidence": "Line 89: isRoleAdmin = profile.role === 'admin'. Firestore rule allows users to write their own /users/{uid} document including the role field.",
+      "impact": "Any authenticated user can escalate to admin role by writing role:'admin' to their Firestore document",
+      "status": "BROKEN"
+    },
+    {
+      "id": "P1-003",
+      "severity": "P1",
+      "confidence": "Medium",
+      "category": "Security",
+      "title": "Firestore security rules not deployed (no firebase.json)",
+      "files": ["firestore.rules"],
+      "evidence": "No firebase.json or .firebaserc exists in the repository. Rules cannot be deployed without these files.",
+      "impact": "If Firebase project uses default permissive rules, all data is publicly readable and writable",
+      "status": "NOT TESTABLE"
+    },
+    {
+      "id": "P1-004",
+      "severity": "P1",
+      "confidence": "High",
+      "category": "Data Persistence",
+      "title": "No firestore.indexes.json — compound queries will fail",
+      "files": ["firestore-store.ts"],
+      "evidence": "fsGetPublicAppearances() uses where('isPublished','==',true), where('status','==','scheduled'), where('date','==',filter.date) — compound query requires index",
+      "impact": "First production query to /appearances will fail with FAILED_PRECONDITION index error",
+      "status": "MISSING"
+    },
+    {
+      "id": "P1-005",
+      "severity": "P1",
+      "confidence": "High",
+      "category": "Map",
+      "title": "data-map-ready set before tile load event",
+      "files": ["src/components/MapLibreMap.tsx"],
+      "evidence": "Line 52: setMapReady(true) called immediately after Map() constructor. map.on('load',...) fires later. Playwright tests pass because they check data-map-ready, not actual tile rendering.",
+      "impact": "Tests may pass while map shows blank tiles; flyTo/marker interactions can fail before load",
+      "status": "PARTIAL"
+    },
+    {
+      "id": "P1-006",
+      "severity": "P1",
+      "confidence": "High",
+      "category": "Infrastructure",
+      "title": "Default tile and geocoding providers are rate-limited public services",
+      "files": ["src/config/app-config.ts"],
+      "evidence": "mapTileUrl defaults to CARTO free tier; geocodingApiUrl defaults to Nominatim (1 req/s). No production alternatives documented.",
+      "impact": "Application will hit rate limits under production load",
+      "status": "PARTIAL"
+    },
+    {
+      "id": "P1-007",
+      "severity": "P1",
+      "confidence": "Medium",
+      "category": "Security",
+      "title": "Server-side URL fetch has no SSRF protection",
+      "files": ["src/app/api/admin/sources/fetch/route.ts"],
+      "evidence": "Line 71: fetch(source.url,...) with no URL validation. source.url comes from the database without domain/scheme restrictions.",
+      "impact": "If API is unauthenticated (P0-001), SSRF risk to internal metadata endpoints (169.254.169.254)",
+      "status": "MISSING"
+    },
+    {
+      "id": "P2-001",
+      "severity": "P2",
+      "confidence": "High",
+      "category": "Data Integrity",
+      "title": "Observation ID in candidate.observationIds does not match saved observation",
+      "files": [
+        "src/lib/ingestion/ai-extractor.ts",
+        "src/app/api/admin/sources/fetch/route.ts"
+      ],
+      "evidence": "ai-extractor.ts line 118 generates obsId='obs-${Date.now()}-${i}'. Route handler lines 154-168 generates a different ID for the actually-saved Observation. Provenance link is broken.",
+      "impact": "candidate.observationIds contains IDs that don't match any saved Observation document",
+      "status": "BROKEN"
+    },
+    {
+      "id": "P2-002",
+      "severity": "P2",
+      "confidence": "High",
+      "category": "Ingestion",
+      "title": "Regex HTML parsing is fragile",
+      "files": ["src/app/api/admin/sources/fetch/route.ts"],
+      "evidence": "Lines 136-141 use regex to strip HTML. Regex HTML parsing fails for malformed HTML, nested tags, and attribute edge cases.",
+      "impact": "Schedule text may be corrupted before extraction, producing low-quality candidates",
+      "status": "PARTIAL"
+    },
+    {
+      "id": "P2-003",
+      "severity": "P2",
+      "confidence": "High",
+      "category": "Auditability",
+      "title": "adminUserId hardcoded as 'admin-user' in audit logs",
+      "files": [
+        "src/app/admin/sources/page.tsx",
+        "src/app/admin/venues/page.tsx"
+      ],
+      "evidence": "Line 46 (sources), line 103 (venues): adminUserId: 'admin-user' literal string passed to addAuditLog()",
+      "impact": "Audit log cannot be used to attribute actions to specific administrators",
+      "status": "BROKEN"
+    },
+    {
+      "id": "P2-004",
+      "severity": "P2",
+      "confidence": "High",
+      "category": "Ingestion",
+      "title": "No content hash deduplication — same content re-extracted every run",
+      "files": ["src/app/api/admin/sources/fetch/route.ts"],
+      "evidence": "contentHash is computed (line 117) and saved but never compared to previous fetch. Extraction runs on every check regardless of content changes.",
+      "impact": "Duplicate extraction candidates created for every manual source check",
+      "status": "MISSING"
+    },
+    {
+      "id": "P2-005",
+      "severity": "P2",
+      "confidence": "High",
+      "category": "Frontend",
+      "title": "Discovery page data load failure is silently swallowed",
+      "files": ["src/app/page.tsx"],
+      "evidence": "Lines 105-108: catch block only logs to console. No error state shown to user.",
+      "impact": "Firestore permission errors or network failures show '0 results' with no explanation",
+      "status": "MISSING"
+    },
+    {
+      "id": "P2-006",
+      "severity": "P2",
+      "confidence": "Medium",
+      "category": "Ingestion",
+      "title": "resolveRelativeDayOfWeek uses server UTC day-of-week instead of LA timezone",
+      "files": ["src/lib/ingestion/ai-extractor.ts"],
+      "evidence": "Line 160: d.getDay() returns UTC day. Server (cloud) is in UTC, not America/Los_Angeles. Off-by-one on dates crossing midnight boundary.",
+      "impact": "Schedule extraction assigns wrong date for late-night/early-morning posts near midnight",
+      "status": "BROKEN"
+    },
+    {
+      "id": "P2-007",
+      "severity": "P2",
+      "confidence": "High",
+      "category": "Code Quality",
+      "title": "ai-extractor.ts is named and commented as AI/LLM but is heuristic-only regex",
+      "files": ["src/lib/ingestion/ai-extractor.ts"],
+      "evidence": "File comment: 'Heuristic & AI text schedule extraction parser'. Implementation: regex patterns only. No LLM API calls present.",
+      "impact": "Misleads developers about capabilities; extraction quality limited to regex patterns",
+      "status": "MOCKED"
+    }
+  ],
+  "feature_status": {
+    "public_discovery": "VERIFIED_WORKING",
+    "vendor_profiles": "VERIFIED_WORKING",
+    "venue_profiles": "VERIFIED_WORKING",
+    "map_display": "PARTIAL",
+    "map_markers": "PARTIAL",
+    "date_filters": "VERIFIED_WORKING",
+    "city_filter_demo": "VERIFIED_WORKING",
+    "city_filter_firestore": "BROKEN",
+    "anonymous_favorites": "VERIFIED_WORKING",
+    "firebase_auth": "NOT_TESTABLE",
+    "firestore_persistence": "NOT_TESTABLE",
+    "admin_ui_guard": "VERIFIED_WORKING",
+    "admin_api_guard": "MISSING",
+    "ingestion_pipeline": "PARTIAL",
+    "instagram_restriction": "VERIFIED_WORKING",
+    "review_queue_approve": "VERIFIED_WORKING",
+    "firestore_security_rules": "SCAFFOLDED",
+    "firestore_indexes": "MISSING"
+  }
+}

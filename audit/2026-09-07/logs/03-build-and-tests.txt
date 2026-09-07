@@ -1,0 +1,72 @@
+Build & Unit Test Baseline Results
+Date: 2026-09-07
+Auditor: Antigravity Comprehensive Audit
+Commit: 39a5b0b
+
+=== npm run build ===
+Command: npm run build 2>&1
+Exit code: 0 (PASS)
+
+> soco-food-truck-finder@0.1.0 build
+> next build
+
+▲ Next.js 16.3.4 (Turbopack)
+✓ Running next.config.ts took 31ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 1280ms
+  Running TypeScript ...
+  Finished TypeScript in 3.2s ...
+  Collecting page data using 7 workers ...
+  Generating static pages (14/14) in 745ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /admin
+├ ○ /admin/appearances
+├ ○ /admin/audit
+├ ○ /admin/login
+├ ○ /admin/review-queue
+├ ○ /admin/sources
+├ ○ /admin/vendors
+├ ○ /admin/venues
+├ ƒ /api/admin/geocode
+├ ƒ /api/admin/sources/fetch
+├ ○ /favorites
+├ ƒ /vendors/[slug]
+└ ƒ /venues/[slug]
+
+○ (Static) prerendered as static content
+ƒ (Dynamic) server-rendered on demand
+
+STATUS: BUILD PASSED — No TypeScript errors, no build errors.
+
+=== npx vitest run ===
+Command: npx vitest run 2>&1
+Exit code: 0 (PASS)
+
+(!) Vite config notice: ESM syntax in CommonJS-loaded vitest.config.ts
+
+ RUN  v5.0.0 D:/Downloads/test project
+
+ ✓ tests/domain.test.ts (10 tests) 11ms
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Duration  494ms
+
+STATUS: ALL 10 UNIT TESTS PASS.
+
+Test Coverage:
+ - Timezone utility functions (5 tests) — PASS
+ - Venue alias matching (2 tests) — PASS
+ - AI schedule extraction pipeline (1 test) — PASS
+ - Public vs admin appearance separation (1 test) — PASS
+ - Anonymous favorites union merge (1 test) — PASS
+
+=== npx playwright test ===
+Exit code: 0 (PASS)
+6 tests passed / 6 total (20.1s)
+Details: See 05-playwright-baseline.txt

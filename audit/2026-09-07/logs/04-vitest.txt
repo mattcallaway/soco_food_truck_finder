@@ -1,0 +1,1 @@
+[ERROR] Could not capture vitest output due to system permission timeout on run_command.
